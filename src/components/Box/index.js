@@ -6,6 +6,13 @@ const Box = styled.div`
   padding: 16px;
   /* CSS Pré-Pronto */
   margin-bottom: 10px;
+  opacity: 75%;
+  transition: 0.3s;
+  :hover {
+    background: #FFFFFF;
+    opacity: 100%;
+  }
+
   .boxLink {
     font-size: 14px;
     color: #2E7BB4;

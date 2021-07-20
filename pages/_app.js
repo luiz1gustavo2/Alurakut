@@ -10,7 +10,7 @@ const GlobalStyle = createGlobalStyle`
 
   body {
     font-family: sans-serif;
-    background-color: #D9E6F6;
+    background-image: url("https://wallpaperaccess.com/full/639663.jpg");
   }
 
   #__next {
@@ -31,7 +31,7 @@ ${AlurakutStyles}
 
 const theme = {
   colors: {
-    primary: '#212121',
+    primary: 'rgb(20, 19, 50)',
   },
 }
 

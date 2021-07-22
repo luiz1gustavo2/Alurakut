@@ -1,8 +1,32 @@
 import React from 'react';
+import nookies from 'nookies';
+import jwt from 'jsonwebtoken';
 import MainGrid from '../src/components/MainGrid';
 import Box from '../src/components/Box';
 import { AlurakutMenu, OrkutNostalgicIconSet, AlurakutProfileSidebarMenuDefault } from '../src/lib/AlurakutCommons';
 import { ProfileRelationsBoxWrapper } from '../src/components/ProfileRelations';
+
+function ProfileRelationsBox(propriedades) {
+  return (
+    <ProfileRelationsBoxWrapper>
+      <h2 className="smallTitle">
+        {propriedades.title} ({propriedades.items.length})
+      </h2>
+      <ul>
+        {/* {items.map((itemAtual) => {
+          return (
+            <li key={itemAtual}>
+              <a href={'https://github.com/${itemAtual}.png'} key={itemAtual.title}>
+                <img src={itemAtual.image} />
+                <span>{itemAtual.title}</span>
+              </a>
+            </li>
+          )
+        })} */}
+      </ul>
+    </ProfileRelationsBoxWrapper >
+  )
+}
 
 function ProfileSidebar(propriedades) {
   return (
@@ -22,22 +46,46 @@ function ProfileSidebar(propriedades) {
   )
 }
 
-export default function Home() {
-  const [comunidades, setComunidades] = React.useState([{
-    id: '534758437859347589378347589',
-    title: 'Eu odeio acordar cedo',
-    image: 'https://alurakut.vercel.app/capa-comunidade-01.jpg'
-  }]);
-  const devUser = 'luiz1gustavo2';
+export default function Home(props) {
+  const [comunidades, setComunidades] = React.useState([]);
+  const devUser = props.githubUser;
   const pessoasFavoritas = ['juunegreiros', 'omariosouto', 'peas', 'filipedeschamps', 'felipefialho', 'marcobrunodev']
+  const [seguidores, setSeguidores] = React.useState([]);
 
-  const seguidores = fetch('https://api.github.com/users/peas/followers')
-    .then(function (respostaDoServidor) {
-      return respostaDoServidor.json();
+  React.useEffect(function () {
+    fetch('https://api.github.com/users/luiz1gustavo2/followers')
+      .then(function (respostaDoServidor) {
+        return respostaDoServidor.json();
+      })
+      .then(function (respostaCompleta) {
+        setSeguidores(respostaCompleta);
+      })
+
+    // Api GraphQL
+    fetch('https://graphql.datocms.com/', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'fdd0d21a611f65d898feb5c9c7950a',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        "query": `query {
+        allCommunities {
+          id 
+          title
+          imageUrl
+          creatorSlug
+        }
+      }` })
     })
-    .then(function (respostaCompleta) {
-      console.log(respostaCompleta);
-    })
+      .then((response) => response.json())
+      .then((respostaCompleta) => {
+        const comunidadesVindasDoDato = respostaCompleta.data.allCommunities;
+        console.log(comunidadesVindasDoDato)
+        setComunidades(comunidadesVindasDoDato)
+      })
+  }, [])
 
   return (
     <>
@@ -62,13 +110,27 @@ export default function Home() {
               const dadosDoForm = new FormData(e.target);
 
               const comunidade = {
-                id: new Date().toISOString(),
                 title: dadosDoForm.get('title'),
-                image: dadosDoForm.get('image'),
+                imageUrl: dadosDoForm.get('image'),
+                creatorSlug: devUser,
               }
-              const comunidadesAtualizadas = [...comunidades, 'VASP']
-              setComunidades(comunidadesAtualizadas)
+
+              fetch('/api/comunidades', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(comunidade)
+              })
+                .then(async (response) => {
+                  const dados = await response.json();
+                  console.log(dados.registroCriado);
+                  const comunidade = dados.registroCriado;
+                  const comunidadesAtualizadas = [...comunidades, comunidade];
+                  setComunidades(comunidadesAtualizadas)
+                })
             }}>
+
               <div>
                 <input placeholder="Qual vai ser o nome da sua comunidade?"
                   name="title" aria-label="Qual vai ser o nome da sua comunidade?"
@@ -90,23 +152,7 @@ export default function Home() {
         </div>
 
         <div className="profileRelationsArea" style={{ gridArea: 'profileRelationsArea' }}>
-          <ProfileRelationsBoxWrapper>
-            <h2 className="smallTitle">
-              Seguidores ({seguidores.length})
-            </h2>
-            <ul>
-              {/*  {seguidores.map((itemAtual) => {
-                return (
-                  <li key={itemAtual}>
-                    <a href={'https://github.com/${itemAtual}.png'} key={itemAtual.title}>
-                      <img src={itemAtual.image} />
-                      <span>{itemAtual.title}</span>
-                    </a>
-                  </li>
-                )
-              })}  */}
-            </ul>
-          </ProfileRelationsBoxWrapper>
+          <ProfileRelationsBox title="Seguidores" items={seguidores} />
           <ProfileRelationsBoxWrapper>
             <h2 className="smallTitle">
               Comunidades ({comunidades.length})
@@ -115,8 +161,8 @@ export default function Home() {
               {comunidades.map((itemAtual) => {
                 return (
                   <li key={itemAtual.id}>
-                    <a href={'/users/${itemAtual.title}'} key={itemAtual.title}>
-                      <img src={itemAtual.image} />
+                    <a href={`/communities/${itemAtual.id}`} key={itemAtual.title}>
+                      <img src={itemAtual.imageUrl} />
                       <span>{itemAtual.title}</span>
                     </a>
                   </li>
@@ -147,4 +193,26 @@ export default function Home() {
       </MainGrid>
     </>
   )
+}
+
+export async function getServerSideProps(ctx) {
+  const cookies = nookies.get(ctx);
+  const token = cookies.USER_TOKEN;
+  const decodedToken = jwt.decode(token);
+  const githubUser = decodedToken?.githubUser;
+
+  if (!githubUser) {
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      },
+    }
+  }
+
+  return {
+    props: {
+      githubUser,
+    }
+  }
 }
